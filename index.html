@@ -15,7 +15,6 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      min-height: 100vh;
       text-align: center;
     }
     h1 { font-size: 2.4rem; margin-top: 2rem; margin-bottom: 0.5rem; }
@@ -26,6 +25,20 @@
       transition: 0.3s ease; border: none; cursor: pointer;
     }
     a.button:hover, button:hover { background: #009bb3; }
+    section {
+      width: 100%; max-width: 900px; margin: 2rem auto;
+      padding: 1rem; border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 0 12px rgba(0, 188, 212, 0.3);
+    }
+    iframe {
+      width: 100%;
+      height: 420px;
+      border: none;
+      border-radius: 10px;
+      margin-top: 1rem;
+      box-shadow: 0 0 12px rgba(0, 188, 212, 0.4);
+    }
     form {
       display: flex; flex-direction: column; gap: 0.5rem;
       align-items: center; margin-bottom: 2rem;
@@ -34,7 +47,7 @@
       padding: 0.7rem 1rem; border-radius: 6px; border: none;
       width: 260px; font-size: 1rem;
     }
-    footer { margin-top: auto; margin-bottom: 1rem; font-size: 0.85rem; color: #aad2dc; }
+    footer { margin-top: 2rem; margin-bottom: 1rem; font-size: 0.85rem; color: #aad2dc; }
     img.logo { width: 120px; margin-top: 2rem; }
   </style>
 </head>
@@ -48,13 +61,22 @@
     to enhance operational safety and awareness.
   </p>
   <p>
-    Our beta version uses Google Earth and Mapbox integration.  
+    Our beta version uses Mapbox integration.  
     Subscription access with live updates and role-specific layers is coming soon.
   </p>
 
-  <a href="https://mhumaidh.github.io/test_map/" class="button">View Demo Map</a>
+  <a href="#map-section" class="button">View Map Preview</a>
 
-  <h3 style="margin-top:2rem;">Subscribe for Updates</h3>
+  <section id="map-section">
+    <h3>Live Map Preview</h3>
+    <p>Explore the beta version of Seavion’s interactive awareness map below:</p>
+    <iframe
+      src="https://api.mapbox.com/styles/v1/mhumaidh/cmh53iv3j00ck01qxdkt9gyu3.html?title=false&access_token=pk.eyJ1IjoibWh1bWFpZGgiLCJhIjoiY21oM2loNWF2MzRnMDJqb2Vxemk1d2o4ZSJ9.eDG9fyXaOPvMfc1qAg98Aw&zoomwheel=false#13.88/2.68221/72.93633"
+      title="Seavion Map">
+    </iframe>
+  </section>
+
+  <h3>Subscribe for Updates</h3>
   <p>Be the first to know when Seavion launches full access.</p>
 
   <form name="seavion-signup" method="POST" data-netlify="true">
