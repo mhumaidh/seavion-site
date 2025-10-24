@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seavion – Air-Sea Awareness Platform</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(180deg, #00263b 0%, #005c7b 100%);
+      color: #f4f9fa;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      text-align: center;
+    }
+    h1 { font-size: 2.4rem; margin-top: 2rem; margin-bottom: 0.5rem; }
+    p { max-width: 620px; line-height: 1.6; margin: 0.5rem auto 1.5rem; }
+    a.button, button {
+      background: #00bcd4; color: white; padding: 0.8rem 1.5rem;
+      border-radius: 8px; text-decoration: none; font-weight: 600;
+      transition: 0.3s ease; border: none; cursor: pointer;
+    }
+    a.button:hover, button:hover { background: #009bb3; }
+    form {
+      display: flex; flex-direction: column; gap: 0.5rem;
+      align-items: center; margin-bottom: 2rem;
+    }
+    input[type="email"] {
+      padding: 0.7rem 1rem; border-radius: 6px; border: none;
+      width: 260px; font-size: 1rem;
+    }
+    footer { margin-top: auto; margin-bottom: 1rem; font-size: 0.85rem; color: #aad2dc; }
+    img.logo { width: 120px; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <img src="logo.png" alt="Seavion Logo" class="logo" />
+  <h1>Seavion</h1>
+  <p>
+    <strong>Seavion</strong> is an independent air-sea awareness platform built for pilots,
+    seafarers, and drone operators across the Maldives.  
+    It visualizes water runways, anchorage zones, and restricted airspace on one intuitive map
+    to enhance operational safety and awareness.
+  </p>
+  <p>
+    Our beta version uses Google Earth and Mapbox integration.  
+    Subscription access with live updates and role-specific layers is coming soon.
+  </p>
+
+  <a href="https://mhumaidh.github.io/test_map/" class="button">View Demo Map</a>
+
+  <h3 style="margin-top:2rem;">Subscribe for Updates</h3>
+  <p>Be the first to know when Seavion launches full access.</p>
+
+  <form name="seavion-signup" method="POST" data-netlify="true">
+    <input type="email" name="email" placeholder="Enter your email" required />
+    <button type="submit">Notify Me</button>
+  </form>
+
+  <footer>© 2025 Seavion • Beta Awareness Map</footer>
+</body>
+</html>
