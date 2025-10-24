@@ -49,6 +49,12 @@
     }
     footer { margin-top: 2rem; margin-bottom: 1rem; font-size: 0.85rem; color: #aad2dc; }
     img.logo { width: 120px; margin-top: 2rem; }
+    #form-message {
+      margin-top: 0.5rem;
+      font-size: 0.95rem;
+      color: #aef2ff;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -61,7 +67,7 @@
     to enhance operational safety and awareness.
   </p>
   <p>
-    Our beta version uses Mapbox integration.  
+    Our beta version uses Google Earth and Mapbox integration.  
     Subscription access with live updates and role-specific layers is coming soon.
   </p>
 
@@ -79,11 +85,36 @@
   <h3>Subscribe for Updates</h3>
   <p>Be the first to know when Seavion launches full access.</p>
 
-  <form name="seavion-signup" method="POST" data-netlify="true">
+  <form id="seavion-form" action="https://formspree.io/f/xqagzkvd" method="POST">
     <input type="email" name="email" placeholder="Enter your email" required />
     <button type="submit">Notify Me</button>
+    <div id="form-message">Thank you! You’ll receive Seavion updates soon.</div>
   </form>
 
   <footer>© 2025 Seavion • Beta Awareness Map</footer>
+
+  <script>
+    const form = document.getElementById('seavion-form');
+    const message = document.getElementById('form-message');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const response = await fetch(form.action, {
+        method: form.method,
+        body: data,
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        message.style.display = 'block';
+        form.reset();
+      } else {
+        message.style.display = 'block';
+        message.textContent = 'Something went wrong. Please try again.';
+        message.style.color = '#ff9999';
+      }
+    });
+  </script>
 </body>
 </html>
