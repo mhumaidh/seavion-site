@@ -87,7 +87,7 @@ async function fetchWindSite(site) {
 
   // vector-average
   const uv = ok.map(v => {
-    const to = (v.dir_from + 180) % 360;
+    const to = (v.dir_from + 270) % 360;
     return { u: v.sp_mps * Math.cos(toRad(to)), v: v.sp_mps * Math.sin(toRad(to)) };
   }).reduce((a,b) => ({ u: a.u + b.u, v: a.v + b.v }), { u:0, v:0 });
 
