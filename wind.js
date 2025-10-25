@@ -37,12 +37,18 @@ function bracketHours(timesISO, now = Date.now()) {
 }
 
 function mpsFromToUV(sp, fromDeg) {
-  const to = (fromDeg + 180) % 360; // FROM -> TO
-  return { u: sp * Math.cos(toRad(to)), v: sp * Math.sin(toRad(to)) };
+  // Flip 180° so we get the direction the air is moving toward
+  const to = (fromDeg + 180) % 360;
+  // Convert to radians and compute u/v
+  const rad = toRad(to);
+  // Mapbox expects 0°=north, 90°=east — so swap axes accordingly
+  return { u: sp * Math.sin(rad), v: sp * Math.cos(rad) };
 }
+
 function uvToSpeedDir(u, v) {
   const sp = Math.hypot(u, v);
-  const dir_to = (toDeg(Math.atan2(u, v)) + 360) % 360;  // ✅ CW from North
+  // Bearing clockwise from north (so 0°=north, 90°=east)
+  const dir_to = (toDeg(Math.atan2(u, v)) + 360) % 360;
   const dir_from = (dir_to + 180) % 360;
   return { sp_mps: sp, dir_from, dir_to };
 }
