@@ -42,9 +42,9 @@ function mpsFromToUV(sp, fromDeg) {
 }
 function uvToSpeedDir(u, v) {
   const sp = Math.hypot(u, v);
-  const dirTo = toDeg(Math.atan2(v, u));
-  const dirFrom = (dirTo + 180) % 360;
-  return { sp_mps: sp, dir_from: dirFrom, dir_to: dirTo };
+  const dir_to = (toDeg(Math.atan2(u, v)) + 360) % 360;  // ✅ CW from North
+  const dir_from = (dir_to + 180) % 360;
+  return { sp_mps: sp, dir_from, dir_to };
 }
 
 // ---------- Sampling helpers (reduce grid bias) ----------
