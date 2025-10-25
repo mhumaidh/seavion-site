@@ -96,32 +96,43 @@ async function addOrUpdateWind() {
   if (!map.getSource('wind')) {
     map.addSource('wind', { type:'geojson', data });
 
-    if (!map.hasImage('arrow')) {
-      await new Promise((res,rej)=>
-        map.loadImage('https://docs.mapbox.com/mapbox-gl-js/assets/arrow.png',(e,img)=>{
-          if(e) return rej(e); map.addImage('arrow',img); res();
-        })
-      ).catch(e=>console.error('Arrow image load failed:',e));
-    }
+    // ---- INLINE ARROW ICON (no external fetch; always available) ----
+    const arrowSvg = `data:image/svg+xml;base64,${btoa(`
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="white">
+  <polygon points="12,2 20,18 12,14 4,18" />
+</svg>`)}`
+    await new Promise((res,rej)=>
+      map.loadImage(arrowSvg,(e,img)=>{
+        if(e) return rej(e);
+        if(!map.hasImage('arrow')) map.addImage('arrow',img);
+        res();
+      })
+    ).catch(e=>console.error('Arrow image load failed:',e));
 
+    // Background bubble for magnitude context
     map.addLayer({
       id:'wind-bubble', type:'circle', source:'wind',
       paint:{
-        'circle-radius':['interpolate',['linear'],['get','wind_speed_mps'],0,5,20,16],
+        'circle-radius':['interpolate',['linear'],['get','wind_speed_mps'], 0,5, 20,16],
         'circle-opacity':0.22, 'circle-color':'#39a9ff'
       }
     });
 
+    // ---- SCALE ARROW SIZE WITH WIND SPEED ----
     map.addLayer({
       id:'wind-arrows', type:'symbol', source:'wind',
       layout:{
-        'icon-image':'arrow','icon-size':0.65,
+        'icon-image':'arrow',
+        // 0 m/s => 0.45x; 10 m/s (~19 kt) => 0.9x; 20 m/s (~39 kt) => 1.4x
+        'icon-size':['interpolate',['linear'],['get','wind_speed_mps'], 0,0.45, 10,0.9, 20,1.4],
         'icon-rotate':['get','wind_to'],
         'icon-rotation-alignment':'map',
         'text-field':['get','label'],
-        'text-offset':[0,1.05],'text-size':12,'text-anchor':'top'
+        'text-offset':[0,1.05],
+        'text-size':12,
+        'text-anchor':'top'
       },
-      paint:{'text-color':'#ffffff'}
+      paint:{ 'text-color':'#ffffff' }
     });
 
     map.on('click','wind-arrows', e=>{
