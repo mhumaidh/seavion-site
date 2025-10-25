@@ -198,6 +198,28 @@ async function addOrUpdateWind() {
       paint: { 'text-color': '#ffffff' }
     });
 
+    map.addLayer({
+      id: 'test-arrow',
+      type: 'symbol',
+      source: {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [72.9396, 2.6862] },
+            properties: { dir: 45 }
+          }]
+        }
+      },
+      layout: {
+        'icon-image': 'arrow',
+        'icon-size': 1.0,
+        'icon-rotate': ['get', 'dir'],
+        'icon-rotation-alignment': 'map'
+      }
+    });
+    
     map.on('click', 'wind-arrows', e => {
       const p = e.features[0].properties;
       new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(
