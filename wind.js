@@ -43,7 +43,7 @@ function mpsFromToUV(sp, fromDeg) {
 function uvToSpeedDir(u, v) {
   const sp = Math.hypot(u, v);
   const dirTo = toDeg(Math.atan2(v, u));
-  const dirFrom = (dirTo + 90) % 360;
+  const dirFrom = (dirTo + 180) % 360;
   return { sp_mps: sp, dir_from: dirFrom, dir_to: dirTo };
 }
 
