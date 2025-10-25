@@ -4,9 +4,7 @@ const STYLE_URL    = 'mapbox://styles/mhumaidh/cmh53iv3j00ck01qxdkt9gyu3'; // yo
 
 // Add/modify your sites (lon, lat):
 const SITES = [
-  { name: 'Malé',     lon: 73.524, lat: 4.175 },
-  { name: 'Maafushi', lon: 73.495, lat: 3.942 },
-  { name: 'Dhigurah', lon: 72.926, lat: 3.527 }
+  { name: 'NIY', lon: 72.93960976474132	, lat: 2.686273100482876}, 
   // …add more
 ];
 
