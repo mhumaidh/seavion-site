@@ -62,7 +62,7 @@ function sampleOffsets(lon, lat) {
 // ---------- Forecast API (works for wind) ----------
 async function fetchForecastPoint(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-              `&hourly=wind_speed_10m,wind_direction_10m&timezone=auto`;
+              `&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=auto`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Forecast API HTTP ${r.status}`);
   const j = await r.json();
