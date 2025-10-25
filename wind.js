@@ -2,24 +2,27 @@
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibWh1bWFpZGgiLCJhIjoiY21oNXc4NTBmMDc1aDJqczY2YjdqeWtwciJ9.Bk_ROk0n4KlmLaTroAWp5w';
 const STYLE_URL    = 'mapbox://styles/mhumaidh/cmh53iv3j00ck01qxdkt9gyu3';
 
-// Sample site(s)
+// Site(s)
 const SITES = [
   { name: 'NIY', lon: 72.93961, lat: 2.68627 }
 ];
-
 const REFRESH_MINUTES = 10;
 // ----------------------------------------
 
 const $status = document.getElementById('status');
 const say = (msg) => { console.log(msg); if ($status) $status.textContent = msg; };
 
+// Initialize map without setting center/zoom
 mapboxgl.accessToken = MAPBOX_TOKEN;
-const map = new mapboxgl.Map({ container:'map', style:STYLE_URL });
+const map = new mapboxgl.Map({ container: 'map', style: STYLE_URL });
 
-map.on('error', e => { console.error('Map error:', e?.error || e); say('Map error — check console.'); });
+map.on('error', e => {
+  console.error('Map error:', e?.error || e);
+  say('Map error — check console (token / style).');
+});
 
 map.on('load', async () => {
-  map.resize();
+  map.resize(); // ensures correct size on load
   await addOrUpdateWind();
   setInterval(addOrUpdateWind, REFRESH_MINUTES * 60 * 1000);
 });
@@ -48,7 +51,7 @@ function uvToSpeedDir(u, v) {
   return { sp_mps: sp, dir_from: dirFrom, dir_to: dirTo };
 }
 
-// ---- fetch marine wind ----
+// ---- Marine wind fetch ----
 async function fetchMarineWind(lat, lon) {
   const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}` +
               `&hourly=wind_speed_10m,wind_direction_10m,wind_wave_height,wind_wave_direction&timezone=auto`;
@@ -96,7 +99,7 @@ async function addOrUpdateWind() {
   if (!map.getSource('wind')) {
     map.addSource('wind', { type:'geojson', data });
 
-    // ---- INLINE ARROW ICON (no external fetch; always available) ----
+    // Inline arrow image (no CDN)
     const arrowSvg = `data:image/svg+xml;base64,${btoa(`
 <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="white">
   <polygon points="12,2 20,18 12,14 4,18" />
@@ -109,7 +112,7 @@ async function addOrUpdateWind() {
       })
     ).catch(e=>console.error('Arrow image load failed:',e));
 
-    // Background bubble for magnitude context
+    // Blue bubble background
     map.addLayer({
       id:'wind-bubble', type:'circle', source:'wind',
       paint:{
@@ -118,12 +121,11 @@ async function addOrUpdateWind() {
       }
     });
 
-    // ---- SCALE ARROW SIZE WITH WIND SPEED ----
+    // Scaled arrows + labels
     map.addLayer({
       id:'wind-arrows', type:'symbol', source:'wind',
       layout:{
         'icon-image':'arrow',
-        // 0 m/s => 0.45x; 10 m/s (~19 kt) => 0.9x; 20 m/s (~39 kt) => 1.4x
         'icon-size':['interpolate',['linear'],['get','wind_speed_mps'], 0,0.45, 10,0.9, 20,1.4],
         'icon-rotate':['get','wind_to'],
         'icon-rotation-alignment':'map',
