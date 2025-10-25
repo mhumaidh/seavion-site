@@ -1,12 +1,12 @@
 // ---------- CONFIG ----------
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibWh1bWFpZGgiLCJhIjoiY21oNXc4NTBmMDc1aDJqczY2YjdqeWtwciJ9.Bk_ROk0n4KlmLaTroAWp5w';
-const STYLE_URL = 'mapbox://styles/mhumaidh/cmh53iv3j00ck01qxdkt9gyu3';
-
-const SITES = [
-  { name: 'NIY', lon: 72.93961, lat: 2.68627 }
-];
-
+const STYLE_URL     = 'mapbox://styles/mhumaidh/cmh53iv3j00ck01qxdkt9gyu3';
+const SITES = [{ name: 'NIY', lon: 72.93961, lat: 2.68627 }];
 const REFRESH_MINUTES = 10;
+
+// Final rotation tweak applied to every arrow (degrees).
+// Your renderer is 90° clockwise off → rotate 90° counter-clockwise.
+const ROT_OFFSET_DEG = -90;
 // ----------------------------------------
 
 const $status = document.getElementById('status');
@@ -16,7 +16,6 @@ mapboxgl.accessToken = MAPBOX_TOKEN;
 const map = new mapboxgl.Map({ container: 'map', style: STYLE_URL });
 
 map.on('error', e => { console.error('Map error:', e?.error || e); say('Map error — see console.'); });
-
 map.on('load', async () => {
   map.resize();
   await addOrUpdateWind();
@@ -27,77 +26,76 @@ map.on('load', async () => {
 const toRad = d => d * Math.PI / 180;
 const toDeg = r => (r * 180 / Math.PI + 360) % 360;
 
-// API Fetch
 async function fetchForecastPoint(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-    + `&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=auto`;
-
+            + `&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=auto`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const j = await r.json();
 
-  const times = j.hourly.time.map(t => Date.parse(t));
+  const ts = j.hourly.time.map(t => Date.parse(t));
   const now = Date.now();
-  let best = 0, bestDiff = Infinity;
-  for (let i = 0; i < times.length; i++) {
-    const diff = Math.abs(times[i] - now);
-    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  let k = 0, best = 1e15;
+  for (let i = 0; i < ts.length; i++) {
+    const d = Math.abs(ts[i] - now);
+    if (d < best) { best = d; k = i; }
   }
-
-  const sp = j.hourly.wind_speed_10m[best];
-  const from = j.hourly.wind_direction_10m[best];
-  return { sp, from };
+  return {
+    sp_mps: j.hourly.wind_speed_10m[k],
+    from_deg: j.hourly.wind_direction_10m[k]
+  };
 }
 
-// Convert wind direction and components
+// FROM→TO, then components (u east, v north)
 function mpsFromToUV(sp, fromDeg) {
-  const to = (fromDeg + 180) % 360; // FROM → TO
-  const rad = toRad(to);
-  // Convert to east-based components (u = east, v = north)
+  const toDegNorth = (fromDeg + 180) % 360; // show where air is GOING
+  const rad = toRad(toDegNorth);
   return { u: sp * Math.sin(rad), v: sp * Math.cos(rad) };
 }
 
+// Components → bearings
 function uvToSpeedDir(u, v) {
   const sp = Math.hypot(u, v);
-  // East-based rotation (CW from east) for Mapbox
-  const dir_to_east = (toDeg(Math.atan2(v, u)) + 360) % 360;
-  const dir_from_east = (dir_to_east + 180) % 360;
-  return { sp_mps: sp, dir_from_east, dir_to_east };
+  // North-based "to" (CW from north)
+  const dir_to_north = (toDeg(Math.atan2(u, v)) + 360) % 360;
+  const dir_from_north = (dir_to_north + 180) % 360;
+
+  // Apply global calibration so Mapbox renders the expected quadrant
+  const dir_to_render = (dir_to_north + ROT_OFFSET_DEG + 360) % 360;
+
+  return { sp_mps: sp, dir_from_north, dir_to_north, dir_to_render };
 }
 
-// Build feature collection
 async function buildWindFC() {
   const feats = [];
-
   for (const site of SITES) {
     try {
-      const { sp, from } = await fetchForecastPoint(site.lat, site.lon);
-      const { u, v } = mpsFromToUV(sp, from);
-      const { sp_mps, dir_to_east } = uvToSpeedDir(u, v);
+      const { sp_mps, from_deg } = await fetchForecastPoint(site.lat, site.lon);
+      const { u, v } = mpsFromToUV(sp_mps, from_deg);
+      const { sp_mps: sp, dir_to_render, dir_to_north } = uvToSpeedDir(u, v);
 
       feats.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [site.lon, site.lat] },
         properties: {
           name: site.name,
-          wind_to: dir_to_east,
-          wind_speed_mps: sp_mps,
-          wind_speed_kt: sp_mps * 1.94384,
-          label: `${(sp_mps * 1.94384).toFixed(1)} kt`
+          wind_rotate: dir_to_render,            // <— use this for icon-rotate
+          wind_to_north: dir_to_north,           // optional (for popup/debug)
+          wind_speed_mps: sp,
+          wind_speed_kt: sp * 1.94384,
+          label: `${(sp * 1.94384).toFixed(1)} kt`
         }
       });
-    } catch (err) {
-      console.warn('Wind fetch failed for', site.name, err);
+    } catch (e) {
+      console.warn('Wind fetch failed for', site.name, e);
     }
   }
-
   return { type: 'FeatureCollection', features: feats };
 }
 
-// Create arrow image
+// Arrow bitmap (PNG via canvas — robust in GL JS v3)
 function makeArrowCanvas(size = 64, color = '#fff') {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
+  const c = document.createElement('canvas'); c.width = c.height = size;
   const ctx = c.getContext('2d');
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -109,14 +107,12 @@ function makeArrowCanvas(size = 64, color = '#fff') {
   ctx.fill();
   return c;
 }
-
 async function ensureArrowImage() {
   if (map.hasImage('arrow')) return;
   const canvas = makeArrowCanvas(64, '#ffffff');
   map.addImage('arrow', canvas, { pixelRatio: 2 });
 }
 
-// Add/update wind layer
 async function addOrUpdateWind() {
   say('Updating wind…');
   const data = await buildWindFC();
@@ -143,7 +139,7 @@ async function addOrUpdateWind() {
       layout: {
         'icon-image': 'arrow',
         'icon-size': ['interpolate', ['linear'], ['get', 'wind_speed_mps'], 0, 0.45, 10, 0.9, 20, 1.4],
-        'icon-rotate': ['get', 'wind_to'], // east-based rotation
+        'icon-rotate': ['get', 'wind_rotate'],  // <— rotated with global offset
         'icon-rotation-alignment': 'map',
         'text-field': ['get', 'label'],
         'text-offset': [0, 1.05],
@@ -152,6 +148,7 @@ async function addOrUpdateWind() {
       },
       paint: { 'text-color': '#ffffff' }
     });
+
   } else {
     map.getSource('wind').setData(data);
   }
