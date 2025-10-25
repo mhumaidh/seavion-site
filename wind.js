@@ -37,7 +37,7 @@ function bracketHours(timesISO, now = Date.now()) {
 }
 
 function mpsFromToUV(sp, fromDeg) {
-  const to = (fromDeg + 180) % 360; // FROM -> TO
+  const to = (fromDeg + 270) % 360; // FROM -> TO
   return { u: sp * Math.cos(toRad(to)), v: sp * Math.sin(toRad(to)) };
 }
 function uvToSpeedDir(u, v) {
