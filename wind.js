@@ -2,10 +2,10 @@
 const MAPBOX_TOKEN = 'pk.eyJ1IjoibWh1bWFpZGgiLCJhIjoiY21oNXc4NTBmMDc1aDJqczY2YjdqeWtwciJ9.Bk_ROk0n4KlmLaTroAWp5w';
 const STYLE_URL    = 'mapbox://styles/mhumaidh/cmh53iv3j00ck01qxdkt9gyu3';
 
+// Site(s)
 const SITES = [
   { name: 'NIY', lon: 72.93961, lat: 2.68627 }
 ];
-
 const REFRESH_MINUTES = 10;
 // ----------------------------------------
 
@@ -37,7 +37,7 @@ function bracketHours(timesISO, now = Date.now()) {
 }
 
 function mpsFromToUV(sp, fromDeg) {
-  const to = (fromDeg + 180) % 360; // convert FROM -> TO
+  const to = (fromDeg + 180) % 360; // FROM -> TO
   return { u: sp * Math.cos(toRad(to)), v: sp * Math.sin(toRad(to)) };
 }
 function uvToSpeedDir(u, v) {
@@ -47,25 +47,20 @@ function uvToSpeedDir(u, v) {
   return { sp_mps: sp, dir_from: dirFrom, dir_to: dirTo };
 }
 
-// ---------- Data fetchers ----------
-async function fetchMarineWind(lat, lon) {
-  // Keep it minimal to avoid 400s on some combos; add waves later if needed
-  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}` +
-              `&hourly=wind_speed_10m,wind_direction_10m&timezone=auto`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Marine API HTTP ${r.status}`);
-  const j = await r.json();
-  const { k1, k2, w } = bracketHours(j.hourly.time || []);
-  const sp1 = j.hourly.wind_speed_10m[k1], sp2 = j.hourly.wind_speed_10m[k2];
-  const d1  = j.hourly.wind_direction_10m[k1], d2  = j.hourly.wind_direction_10m[k2];
-  const { u:u1, v:v1 } = mpsFromToUV(sp1, d1);
-  const { u:u2, v:v2 } = mpsFromToUV(sp2, d2);
-  const u = u1*(1-w) + u2*w, v = v1*(1-w) + v2*w;
-  const { sp_mps, dir_from, dir_to } = uvToSpeedDir(u, v);
-  return { sp_mps, dir_from, dir_to, timeTxt: j.hourly.time[k1] };
+// ---------- Sampling helpers (reduce grid bias) ----------
+function sampleOffsets(lon, lat) {
+  const d = 0.12; // ~13 km near equator; tweak if you like
+  return [
+    { lon,        lat        },
+    { lon: lon+d, lat        },
+    { lon: lon-d, lat        },
+    { lon,        lat: lat+d },
+    { lon,        lat: lat-d },
+  ];
 }
 
-async function fetchForecastWind(lat, lon) {
+// ---------- Forecast API (works for wind) ----------
+async function fetchForecastPoint(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
               `&hourly=wind_speed_10m,wind_direction_10m&timezone=auto`;
   const r = await fetch(url);
@@ -81,21 +76,31 @@ async function fetchForecastWind(lat, lon) {
   return { sp_mps, dir_from, dir_to, timeTxt: j.hourly.time[k1] };
 }
 
-async function fetchWindSmart(lat, lon) {
-  try {
-    return await fetchMarineWind(lat, lon);
-  } catch (e) {
-    console.warn('Marine API failed, falling back to forecast:', e.message || e);
-    return await fetchForecastWind(lat, lon);
-  }
+// Enhanced fetch for a site: sample 5 points, vector-average
+async function fetchWindSite(site) {
+  const pts = sampleOffsets(site.lon, site.lat);
+  const arr = await Promise.all(pts.map(p =>
+    fetchForecastPoint(p.lat, p.lon).catch(() => null)
+  ));
+  const ok = arr.filter(Boolean);
+  if (!ok.length) throw new Error('No wind samples');
+
+  // vector-average
+  const uv = ok.map(v => {
+    const to = (v.dir_from + 180) % 360;
+    return { u: v.sp_mps * Math.cos(toRad(to)), v: v.sp_mps * Math.sin(toRad(to)) };
+  }).reduce((a,b) => ({ u: a.u + b.u, v: a.v + b.v }), { u:0, v:0 });
+
+  uv.u /= ok.length; uv.v /= ok.length;
+  const { sp_mps, dir_from, dir_to } = uvToSpeedDir(uv.u, uv.v);
+  const timeTxt = ok[0].timeTxt;
+
+  return { ...site, sp_mps, dir_from, dir_to, timeTxt };
 }
 
 async function buildWindFC() {
   const rows = await Promise.all(SITES.map(s =>
-    fetchWindSmart(s.lat, s.lon).then(d => ({ ...s, ...d })).catch(err => {
-      console.warn('Wind fetch failed for', s.name, err);
-      return null;
-    })
+    fetchWindSite(s).catch(e => { console.warn('Wind fetch failed for', s.name, e); return null; })
   ));
   const feats = rows.filter(Boolean).map(r => ({
     type: 'Feature',
@@ -113,15 +118,15 @@ async function buildWindFC() {
   return { type: 'FeatureCollection', features: feats };
 }
 
-// ---------- Icon generator (PNG via canvas; SVG not supported) ----------
-function makeArrowCanvas(size = 48, color = '#ffffff') {
+// ---------- Arrow icon via canvas (PNG bitmap) ----------
+function makeArrowCanvas(size = 64, color = '#ffffff') {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
   ctx.clearRect(0,0,size,size);
   ctx.fillStyle = color;
 
-  // Simple isosceles triangle pointing up
+  // Triangle pointing up
   const w = size * 0.55;
   const h = size * 0.70;
   const x = size / 2;
@@ -141,25 +146,21 @@ function makeArrowCanvas(size = 48, color = '#ffffff') {
 
 async function ensureArrowImage() {
   if (map.hasImage('arrow')) return;
-  const canvas = makeArrowCanvas(64, '#ffffff'); // crisp, high-res
-  map.addImage('arrow', canvas, { pixelRatio: 2 }); // retina-friendly
+  const canvas = makeArrowCanvas(64, '#ffffff');
+  map.addImage('arrow', canvas, { pixelRatio: 2 });
 }
 
 // ---------- Draw/update ----------
 async function addOrUpdateWind() {
-  say('Updating marine wind…');
+  say('Updating wind…');
   const data = await buildWindFC();
 
   if (!map.getSource('wind')) {
     map.addSource('wind', { type: 'geojson', data });
 
-    // Create arrow icon bitmap locally (no external fetch, no SVG)
     await ensureArrowImage();
 
-    // Helpful debug layer (red dot) — uncomment if needed
-    // map.addLayer({ id:'wind-debug', type:'circle', source:'wind', paint:{ 'circle-radius':6, 'circle-color':'red' } });
-
-    // Background bubble for context
+    // Optional bubble (magnitude)
     map.addLayer({
       id: 'wind-bubble',
       type: 'circle',
@@ -207,5 +208,5 @@ async function addOrUpdateWind() {
     map.getSource('wind').setData(data);
   }
 
-  say(`Marine wind updated • ${new Date().toLocaleTimeString()}`);
+  say(`Wind updated • ${new Date().toLocaleTimeString()}`);
 }
