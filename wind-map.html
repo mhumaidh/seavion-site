@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Seavion – Live Wind</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1,maximum-scale=1" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.16.1/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.16.1/mapbox-gl.css" rel="stylesheet" />
+  <style>html,body,#map{height:100%;margin:0}</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  // 1) Domain-restricted token
+  mapboxgl.accessToken = 'YOUR_DOMAIN_LOCKED_TOKEN';
+
+  // 2) Your existing Studio style
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mhumaidh/cmh53iv3j00ck01qxdkt9gyu3',
+    center: [73.5, 3.8],
+    zoom: 5
+  });
+
+  // 3) Sites to sample (add your platforms/atolls)
+  const SITES = [
+    { name:'Malé', lon:73.524, lat:4.175 },
+    { name:'Maafushi', lon:73.495, lat:3.942 },
+    { name:'Dhigurah', lon:72.926, lat:3.527 }
+  ];
+
+  async function fetchWind(lat, lon){
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+                `&hourly=wind_speed_10m,wind_direction_10m&timezone=auto`;
+    const j = await (await fetch(url)).json();
+    // take nearest hour
+    const i = 0;
+    const sp = j.hourly.wind_speed_10m[i];
+    const from = j.hourly.wind_direction_10m[i];
+    const to = (from + 180) % 360;
+    return { speed: sp, from, to, time: j.hourly.time[i] };
+  }
+
+  async function buildWindFC(){
+    const feats = [];
+    const results = await Promise.all(SITES.map(s =>
+      fetchWind(s.lat, s.lon).then(d => ({...s, ...d})).catch(() => null)
+    ));
+    for (const r of results) if (r) {
+      feats.push({
+        type:'Feature',
+        geometry:{ type:'Point', coordinates:[r.lon, r.lat] },
+        properties:{
+          name:r.name, wind_from:r.from, wind_to:r.to, wind_speed:r.speed,
+          label:`${r.speed.toFixed(1)} m/s`, time:r.time
+        }
+      });
+    }
+    return { type:'FeatureCollection', features:feats };
+  }
+
+  async function addOrUpdateWind(){
+    const data = await buildWindFC();
+    if (!map.getSource('wind')) {
+      map.addSource('wind', { type:'geojson', data });
+      // arrow icon
+      if (!map.hasImage('arrow')) {
+        await new Promise((res, rej) =>
+          map.loadImage('https://docs.mapbox.com/mapbox-gl-js/assets/arrow.png', (e,img)=>{
+            if (e) return rej(e); map.addImage('arrow', img); res();
+          })
+        );
+      }
+      // optional bubble by speed
+      map.addLayer({
+        id:'wind-bubble', type:'circle', source:'wind',
+        paint:{
+          'circle-radius':['interpolate',['linear'],['get','wind_speed'],0,5,20,16],
+          'circle-opacity':0.22, 'circle-color':'#39a9ff'
+        }
+      }, 'place-label'); // position under labels if you want
+
+      // arrows + speed label
+      map.addLayer({
+        id:'wind-arrows', type:'symbol', source:'wind',
+        layout:{
+          'icon-image':'arrow','icon-size':0.65,
+          'icon-rotate':['get','wind_to'],       // use wind_from for met arrows
+          'icon-rotation-alignment':'map',
+          'text-field':['get','label'],
+          'text-offset':[0,1.05],'text-size':12,'text-anchor':'top'
+        },
+        paint:{ 'text-color':'#fff' }
+      });
+      // popup
+      map.on('click','wind-arrows', e=>{
+        const p=e.features[0].properties;
+        new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(
+          `<strong>${p.name}</strong><br>Wind: ${(+p.wind_speed).toFixed(1)} m/s<br>`+
+          `From: ${(+p.wind_from).toFixed(0)}° true<br>${p.time.replace('T',' ')}`
+        ).addTo(map);
+      });
+    } else {
+      map.getSource('wind').setData(data);
+    }
+  }
+
+  map.on('load', async ()=>{
+    await addOrUpdateWind();
+    setInterval(addOrUpdateWind, 10*60*1000); // every 10 min
+  });
+</script>
+</body>
+</html>
